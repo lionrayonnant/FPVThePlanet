@@ -29,7 +29,7 @@ export function _setStore(obj) { _store = obj; }
 function safeStore() {
 	try {
 		const s = globalThis.localStorage;
-		s.getItem(KEY); // déclenche le throw en navigation privée verrouillée
+		s.getItem(KEY); // throws in a locked-down private window
 		return s;
 	} catch {
 		const m = new Map();
@@ -38,7 +38,7 @@ function safeStore() {
 }
 
 let cache = null;
-const pending = new Map();        // key -> value en attente d'écriture
+const pending = new Map();        // key -> value waiting to be written
 let timer = null;
 
 export function getKey() { return _store.getItem(OP_KEY); }
@@ -48,8 +48,9 @@ export function setKey(key) {
 	if (k) _store.setItem(OP_KEY, k); else _store.removeItem(OP_KEY);
 }
 
-// Efface l'identité locale. Ni l'id ni la clé ne survivent à un refus du
-// serveur : garder l'un sans l'autre rejouerait le même 401 à chaque écran.
+// Erases the local identity. Neither the id nor the key survives a refusal
+// from the server: keeping one without the other would replay the same 401 on
+// every screen.
 export function forgetOperator() {
 	cache = null;
 	_store.removeItem(KEY);
@@ -75,9 +76,9 @@ async function req(method, path, body) {
 
 export function getOperator() { return cache; }
 
-// Rend une seule de ces quatre formes : un opérateur chargé, needsBootstrap,
-// une liste de choices, ou needsKey (le serveur `shared` ne nous reconnaît pas —
-// clé absente, fausse, ou opérateur d'avant #60 sans clé).
+// Returns exactly one of four shapes: a loaded operator, needsBootstrap, a
+// list of choices, or needsKey (the `shared` server does not know us — key
+// missing, wrong, or an operator from before #60 that has none).
 const NEEDS_KEY = { operator: null, needsBootstrap: false, choices: null, needsKey: true };
 
 function refused(e) { return e.status === 401 || e.status === 403; }
@@ -97,9 +98,9 @@ export async function loadOperator() {
 	let operators;
 	try { operators = (await req('GET', '')).operators; }
 	catch (e) {
-		// 404 sur la liste : c'est un serveur `shared`, qui n'en publie pas. 401 /
-		// 403 : la clé qu'on porte ne vaut rien. Dans les deux cas, l'écran
-		// OPERATOR KEY — entrer une clé, ou repartir sur un nouvel opérateur.
+		// 404 on the list: a `shared` server, which publishes none. 401 / 403:
+		// the key we carry is worthless. Either way, the OPERATOR KEY screen —
+		// enter a key, or start over with a new operator.
 		if (refused(e) || e.status === 404) { forgetOperator(); return NEEDS_KEY; }
 		throw e;
 	}
@@ -111,21 +112,21 @@ export async function loadOperator() {
 }
 
 export async function createOperator(name) {
-	// La création est la seule route que le mode `shared` laisse ouverte sans
-	// clé : sans elle, personne ne pourrait jamais s'inscrire sur le VPS.
+	// Creation is the one route `shared` mode leaves open without a key:
+	// without it, nobody could ever sign up on the VPS.
 	const { operator, key } = await req('POST', '', { name });
 	cache = operator;
 	_store.setItem(KEY, cache.id);
-	// SILENCIEUSEMENT. On ne fait pas noter un secret de 128 bits à quelqu'un qui
-	// vient voler : le navigateur la garde, et [ SHOW KEY ] (ARCHIVE) la rend le
-	// jour où l'on veut emporter son profil ailleurs.
+	// SILENTLY. Nobody who came to fly is asked to write down a 128-bit
+	// secret: the browser keeps it, and [ SHOW KEY ] (DATA → OPERATOR) gives it
+	// back the day the profile has to move elsewhere.
 	if (key) setKey(key);
 	return cache;
 }
 
-// Retrouver son opérateur depuis un autre navigateur : on pose la clé, puis on
-// demande au serveur qui elle désigne. C'est la clé qui identifie — le serveur
-// `shared` ne publie aucune liste où choisir.
+// Getting one's operator back from another browser: set the key, then ask
+// the server whom it designates. The key is what identifies — a `shared`
+// server publishes no list to choose from.
 export async function resumeWithKey(key) {
 	const previous = getKey();
 	setKey(key);
@@ -147,7 +148,7 @@ export async function selectOperator(id) {
 }
 
 export function patch(key, value) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	cache[key] = value;
 	pending.set(key, value);
 	if (!timer) timer = setTimeout(flush, DEBOUNCE_MS);
@@ -157,59 +158,59 @@ export async function listOperators() {
 	return (await req('GET', '')).operators;
 }
 
-// Rattache un terrain déjà acquis à l'opérateur courant (PHASE 05, KEEP
-// TERRAIN). Contrairement à patch(), c'est un appel serveur direct plutôt
-// qu'un debounce : la décision est unique et son écran attend la confirmation.
-// `extra` optionnel : { signalDensity: { level, range } } — une estimation
-// d'écran du Global Scanner que le serveur ne peut pas recalculer (voir la route).
+// Attaches an already acquired terrain to the current operator (PHASE 05, KEEP
+// TERRAIN). Unlike patch(), a direct server call rather than a debounce: the
+// decision is one-off and its screen waits for the confirmation.
+// Optional `extra`: { signalDensity: { level, range } } — a Global Scanner
+// on-screen estimate the server cannot recompute (see the route).
 export async function keepTerrain(slug, extra = {}) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	cache = (await req('POST', `/${cache.id}/terrain-cache`, { slug, ...extra })).operator;
 	return cache;
 }
 
-// Sessions (PHASE 06). Le cycle de vie complet vit dans src/session.js ; ici on
-// n'expose que les deux appels réseau, parce que c'est cette couche qui connaît
-// l'id de l'opérateur courant.
+// Sessions (PHASE 06). The full lifecycle lives in src/session.js; only the
+// network calls are here, because this layer is the one that knows the
+// current operator's id.
 export async function postSession(body) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	return (await req('POST', `/${cache.id}/sessions`, body)).session;
 }
 
 export async function patchSession(sid, body) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	return (await req('PATCH', `/${cache.id}/sessions/${sid}`, body)).session;
 }
 
-// OPERATOR NOTE (PHASE 15) : distincte de patchSession — s'applique aussi à une
-// session déjà close, que closeSessionRoute (PENDING seulement) refuserait.
+// OPERATOR NOTE (PHASE 15): separate from patchSession — it also applies to a
+// session already closed, which closeSessionRoute (PENDING only) would refuse.
 export async function patchSessionComment(sid, comment) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	return (await req('PATCH', `/${cache.id}/sessions/${sid}/comment`, { comment })).session;
 }
 
-// La session COMPLÈTE, captures comprises (PHASE 17). Les autres réponses
-// élident les `dataUrl` : seul VIEW SESSION paie le poids des images, et
-// seulement à son ouverture.
+// The COMPLETE session, captures included (PHASE 17). Every other answer
+// elides the `dataUrl`s: only VIEW SESSION pays for the images, and only when
+// it opens.
 export async function getSession(sid) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	return (await req('GET', `/${cache.id}/sessions/${sid}`)).session;
 }
 
-// DELETE SESSION (PHASE 17). Le cache local est mis à jour tout de suite : la
-// Home se reconstruit derrière l'écran de détail, et son footer doit compter
-// juste sans refaire un GET complet.
+// DELETE SESSION (PHASE 17). The local cache is updated at once: the Home
+// rebuilds behind the detail screen, and its footer must count right without
+// another full GET.
 export async function deleteSession(sid) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	const { removed } = await req('DELETE', `/${cache.id}/sessions/${sid}`);
 	cache.sessions = (cache.sessions ?? []).filter((s) => s.id !== sid);
 	return removed;
 }
 
-// Une capture (PHASE 16). Écriture immédiate, pas attendue la clôture de
-// session : un onglet mort en vol ne doit pas perdre les photos déjà prises.
+// One capture (PHASE 16). Written at once, not at session close: a tab that
+// dies mid-flight must not lose the photos already taken.
 export async function postPhoto(sid, body) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	return (await req('POST', `/${cache.id}/sessions/${sid}/photos`, body)).session;
 }
 
@@ -218,26 +219,26 @@ export async function postPhoto(sid, body) {
 // fetches directly rather than going through req(). The caller owns the
 // returned object URL and must revoke it when done with it.
 export async function fetchPhoto(sessionId, index) {
-	if (!cache) throw new Error('aucun opérateur chargé');
-	const res = await _fetch(`${OP_BASE}/${cache.id}/sessions/${sessionId}/photos/${index}`, {
+	if (!cache) throw new Error('no operator loaded');
+	const res = await _fetch(`${OP_BASE}/${cache.id}/sessions/${encodeURIComponent(sessionId)}/photos/${encodeURIComponent(index)}`, {
 		headers: authHeaders(),
 	});
 	if (!res.ok) return null;
 	return URL.createObjectURL(await res.blob());
 }
 
-// La piste de vol (issue #24). Une seule écriture, à la clôture, APRÈS le PATCH
-// de la session : elle a sa propre route parce qu'elle a son propre fichier
-// (D5), et OP_WRITABLE_KEYS ne la connaît pas.
+// The flight track (issue #24). One write, at close, AFTER the session's
+// PATCH: it has its own route because it has its own file (D5), and
+// OP_WRITABLE_KEYS does not know it.
 export async function putTrack(sid, stored) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	return req('PUT', `/${cache.id}/sessions/${sid}/track`, stored);
 }
 
-// L'index des pistes pour la carte enrichie : polylignes décimées, départs,
-// fins et photos géolocalisées, jamais les échantillons bruts.
+// The track index for the enriched map: decimated polylines, starts, ends and
+// geolocated photos, never the raw samples.
 export async function listTracks(bbox = null) {
-	if (!cache) throw new Error('aucun opérateur chargé');
+	if (!cache) throw new Error('no operator loaded');
 	const q = bbox ? `?bbox=${[bbox.south, bbox.west, bbox.north, bbox.east].join(',')}` : '';
 	return (await req('GET', `/${cache.id}/tracks${q}`)).tracks;
 }
@@ -259,14 +260,14 @@ export async function flush() {
 	for (const [key, value] of entries) {
 		try { await req('PATCH', `/${cache.id}`, { key, value }); successCount++; }
 		catch (e) {
-			console.warn('[operator] patch échoué, on retentera', e);
+			console.warn('[operator] patch failed, will retry', e);
 			lastError = e;
 			pending.set(key, value);
-			// Réarme le debounce : une panne non surveillée doit quand même retenter.
+			// Re-arm the debounce: an unwatched failure must still retry.
 			if (!timer) timer = setTimeout(flush, DEBOUNCE_MS);
 		}
 	}
-	// Rien n'a été écrit : on le signale à l'appelant plutôt que de mentir « sauvé ».
+	// Nothing was written: tell the caller rather than pretend it was saved.
 	if (entries.length > 0 && successCount === 0) throw lastError;
 }
 
@@ -281,14 +282,14 @@ export async function ensureDevOperator() {
 	return operators.length ? selectOperator(operators[0].id) : createOperator('dev');
 }
 
-// --- la clé sur TOUTES les requêtes de l'API du jeu ---------------------------
+// --- the key on EVERY request to the game's API ------------------------------
 //
-// Un seul point d'attache, et c'est délibéré : `/__map-api` est appelé depuis
-// scanner.js, bootstrap.js, session-log.js et terminal.js, `/__operator/:id`
-// aussi depuis weather.js. Répéter l'en-tête dans chaque module, c'est
-// s'exposer au premier oubli — qui ne se verrait qu'en `shared`, sur le seul
-// hébergement où il compte. En `local` le serveur ne lit jamais l'en-tête : ce
-// qui suit n'y change rigoureusement rien.
+// One attachment point, deliberately: `/__map-api` is called from scanner.js,
+// bootstrap.js, session-log.js and terminal.js, `/__operator/:id` from
+// weather.js too. Repeating the header in each module invites the first
+// omission — which would only show in `shared`, the one hosting where it
+// matters. In `local` the server never reads the header: what follows changes
+// nothing there.
 const API_PREFIXES = [OP_BASE, '/__map-api'];
 
 function isGameApi(url) {
@@ -299,7 +300,7 @@ function isGameApi(url) {
 
 function headerObject(h) {
 	if (!h) return {};
-	// Headers, Map, ou un tableau de paires : tous itérables par forEach.
+	// Headers, Map, or an array of pairs: all iterable with forEach.
 	if (typeof h.forEach === 'function') { const o = {}; h.forEach((v, k) => { o[Array.isArray(h) ? v[0] : k] = Array.isArray(h) ? v[1] : v; }); return o; }
 	return { ...h };
 }
