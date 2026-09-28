@@ -1,7 +1,7 @@
 // Selftest of the HUD callout's pure layout (issue #185, spec §4).
 // Run: node tools/signal-callout-selftest.mjs
 import assert from 'node:assert/strict';
-import { placeCallout, revealCount, scramble, headline, lensWarp } from './signal-callout-model.mjs';
+import { placeCallout, revealCount, scramble, headline, lensWarp, chevronText } from './signal-callout-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -94,8 +94,17 @@ t('headline: the trace, in its yellow — progress, or the gate', () => {
 	assert.deepEqual(headline('trace-wait', { shape: 'dive' }), { word: 'TRACE · DIVE · ENTER THE GATE', tone: 'yellow' });
 	assert.equal(headline('trace', { shape: 'orbit', pct: -3 }).word, 'TRACE · ORBIT · 0 %');
 	// A trace target without its trace in the world: never SIGNAL (no hold fills it).
-	assert.deepEqual(headline('trace', { shape: 'orbit', standby: true }), { word: 'TRACE · ORBIT · STANDBY', tone: 'dim' });
-	assert.deepEqual(headline('trace-wait', { shape: 'spiral', pct: 40, standby: true }), { word: 'TRACE · SPIRAL · STANDBY', tone: 'dim' });
+	// Without the shape: the trace laid later may be another one (an orbit fallback).
+	assert.deepEqual(headline('trace', { shape: 'orbit', standby: true }), { word: 'TRACE · STANDBY', tone: 'dim' });
+	assert.deepEqual(headline('trace-wait', { shape: 'spiral', pct: 40, standby: true }), { word: 'TRACE · STANDBY', tone: 'dim' });
+});
+
+t('chevronText: a trace being flown keeps its progress off-screen; else the distance', () => {
+	assert.equal(chevronText(34.6, null), 'SIGNAL 35 M');
+	assert.equal(chevronText(35, { shape: 'dive', pct: 42.7, wait: false }), 'TRACE · DIVE · 42 %');
+	// Before the gate, and a trace not laid: the distance leads the player there.
+	assert.equal(chevronText(120, { shape: 'spiral', pct: 0, wait: true }), 'SIGNAL 120 M');
+	assert.equal(chevronText(120, { shape: 'orbit', standby: true }), 'SIGNAL 120 M');
 });
 
 t('revealCount follows the trace progress (the gauge is the progress)', () => {

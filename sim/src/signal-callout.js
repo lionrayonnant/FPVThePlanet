@@ -3,7 +3,7 @@
 // link, so the callout never degrades with the video. Layout decisions are in
 // tools/signal-callout-model.mjs; here there is only DOM. OSM text is written
 // with textContent (PR #81).
-import { revealCount, scramble, headline } from '../tools/signal-callout-model.mjs';
+import { revealCount, scramble, headline, chevronText } from '../tools/signal-callout-model.mjs';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const CELLS = 12;
@@ -51,8 +51,7 @@ export class SignalCallout {
 			this.el.hidden = true;
 			this.chev.hidden = false;
 			this.chev.dataset.tone = tone;
-			const dist = Math.round(row.dist);
-			this.chevTxt.textContent = `SIGNAL ${dist} M`;
+			this.chevTxt.textContent = chevronText(row.dist, trace);
 			this.chevArrow.textContent = '▶';
 			this.chevArrow.style.transform = `rotate(${placed.edge.angleDeg}deg)`;
 			// Arrow on the side the chevron points to.
