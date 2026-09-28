@@ -31,30 +31,60 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   la carte comme des points lumineux jaunes, dont le halo grandit avec le
   niveau. Le scan commence dès le zoom 10, en partant du centre de la vue.
   Les lieux sont demandés à Overpass tuile par tuile, une seule requête à la
-  fois, et gardés 30 jours en cache. Si Overpass ne répond pas, le scanner l'affiche et le jeu reste
-  jouable. C'est le premier lot de #185 : la capture en vol vient ensuite.
+  fois, et gardés 30 jours en cache. Pendant le scan, seule la tuile demandée
+  se déchire sous un bruit ASCII, et des lignes de terminal dans le coin de la
+  carte suivent la progression (`[*] SIGNAL SCAN`, `[+] 42 SIGNALS IN VIEW`) ;
+  les signaux ne bougent jamais, ils apparaissent quand leur tuile arrive. Si
+  Overpass ne répond pas, le scanner l'écrit (`RETRY IN 0:52 · THE MAP STILL
+  WORKS`) et le jeu reste jouable. Trois formes que la couleur ne porte pas
+  seule : un point jaune plein à capturer, un anneau vert coché déjà transmis,
+  un petit point terne au-dessus de la clearance. L'en-tête du scanner affiche
+  la clearance et sa jauge. (#185)
 - **Capturer un signal en vol.** Autour du point de décollage, chaque lieu
   notable porte un cartouche ancré sur le bâtiment réel. Le garder dans le
   cadre en FPV remplit une jauge et déchiffre ses champs OpenStreetMap un à un ;
   à 100 %, `UPLINKED` : l'image interceptée rejoint les photos de la session,
   et le lieu passe au vert sur le scanner. Un crash ne perd que ce qui n'était
-  pas encore transmis. Deuxième lot de #185.
-- **Les machines qu'on peut hacker s'élargissent avec la CLEARANCE.** Le
-  TARGET SCAN ne tire plus dans les six familles dès le départ : au niveau 0
-  tout candidat est un 5" freestyle, et chaque palier de clearance ouvre les
-  familles suivantes, jusqu'à l'essaim, réservé à la CLEARANCE 3. Le serveur
-  applique exactement le même tirage — pas de famille au-dessus du niveau
-  atteint, côté client comme côté serveur. Une ligne discrète sous la liste du
-  TARGET SCAN indique le niveau et le nombre de classes accessibles.
-  Troisième lot de #185.
-- **La fiche d'un lieu capturé.** Après `UPLINKED`, une fiche s'affiche
-  quelques secondes dans la colonne droite : l'image interceptée, la vraie
-  photo du lieu (Wikidata, Wikimedia Commons, auteur et licence crédités), une
-  description courte et ses repères en pictogrammes. En fin de vol, l'écran
-  récapitule les lieux transmis par la machine. Plus de lieux aussi (60 par
-  tuile, 3 km autour du décollage), partout dans le monde (temples,
-  sanctuaires, mosquées, cascades, volcans, falaises ; Tokyo compris), et une
-  capture plus tolérante (cône de 20°, 5 s).
+  pas encore transmis. Plus de lieux (60 par tuile, 3 km autour du décollage),
+  partout dans le monde (temples, sanctuaires, mosquées, cascades, volcans,
+  falaises ; Tokyo compris), et une capture tolérante (cône de 20°, 5 s). Au
+  moment où le contrôle est acquis, une notice brève dans le style de l'OSD
+  (`[*] SIGNAL SCAN · 2/7`, puis `[+] 49 SIGNALS IN RANGE`) s'efface au bout de
+  quatre secondes ; une ligne `NEXT SIGNAL 1.2 km ↗` indique ensuite le plus
+  proche, flèche relative au cap, masquée pendant un cartouche. Un signal
+  au-dessus de la clearance reste visible mais chiffré, `ENCRYPTED · CLEARANCE
+  2`, et ne se capture pas. (#185)
+- **La CLEARANCE : ce qu'on transmet ouvre des machines.** Chaque signal
+  transmis vaut un point par niveau (I = 1, II = 2, III = 3), jamais dépensé.
+  Quatre marches : CLEARANCE 0 dès le départ (5" FREESTYLE, signaux de niveau
+  I), 1 à 6 points (+ CINEWHOOP, TOOTHPICK, niveau II), 2 à 18 points (+ 5"
+  RACE, LONG RANGE, HEAVY 5", niveau III), 3 à 36 points (+ THE SWARM). Le
+  tirage reste aléatoire, c'est son réservoir qui s'élargit. La transmission
+  qui franchit une marche l'annonce en vol
+  (`[+] CLEARANCE 1 · CINEWHOOP · TOOTHPICK · TIER II`). (#185)
+- **Le hangar.** Les sept machines — les vrais modèles 3D de chaque famille —
+  sur une rangée, groupées par clearance, avec la jauge vers la marche
+  suivante. Débloquée, une machine tourne lentement ; verrouillée, c'est une
+  silhouette sombre au nom brouillé. Il apparaît sous la liste du TARGET SCAN
+  à chaque vol, en tête de `DATA`, dans le briefing, et sur l'écran de fin du
+  vol qui a franchi une marche, où une ligne de scan révèle la machine
+  ouverte. Son fond reprend la palette de la demo scene, calme et lent :
+  exception au §19 consignée dans la Bible, section « Signaux et
+  habilitation ». (#185)
+- **Les captures dans `DATA`.** Deux sections en tête : `CLEARANCE` (le
+  hangar) et `SIGNALS` — les lieux (`PARIS 8/49 · KYOTO 3/61`), puis les
+  signaux du lieu choisi : transmis (nom, date, machine) ou seulement connus
+  (nom brouillé, distance, niveau). Une capture s'ouvre sur la vraie photo du
+  lieu, ses repères, le crédit avec un lien vers la page du fichier sur
+  Wikimedia Commons, puis `INTERCEPTED`, l'image prise par l'opérateur.
+  `[ FLY THERE ]` lance un vol LIVE sur le lieu. Les noms de lieu viennent de
+  Nominatim, une requête par seconde au plus, gardés 90 jours en cache.
+  L'image interceptée passe par une nouvelle route du serveur, une URL par
+  photo de session ; aucune image nouvelle n'est stockée. (#185)
+- **Une note de confidentialité dans le README.** Les services tiers que le
+  navigateur du joueur contacte directement — Google Earth, les fonds de
+  carte, Nominatim, Overpass, Wikidata, Wikimedia Commons —, ce que chacun
+  voit, et aucune mesure d'audience. (#185)
 - **Un écran de recommandations au lancement.** `RECOMMENDED` montre, avant le
   menu, trois pictogrammes — `FPV RADIO` ou `DUALSHOCK`, et `CHROME` — allumés
   quand le jeu les détecte, ternes sinon. Une seule ligne de texte au plus :
@@ -84,6 +114,25 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   inversées, en plein vol. `M` garde le cycle complet.
 
 ### Modifié
+
+- **Le TARGET SCAN tire dans le réservoir de la clearance.** Au niveau 0,
+  tout candidat est un 5" freestyle (des individus différents) ; l'essaim
+  n'apparaît qu'à la CLEARANCE 3. Une ligne sous la liste indique le niveau et
+  le nombre de classes ouvertes (`CLEARANCE 0 · 1 OF 7 MACHINE CLASSES`). Le
+  client envoie sa clearance à l'ouverture de la session et le serveur tire
+  dans le même réservoir ; jeu solo, il la prend telle quelle. (#185)
+- **La fiche `UPLINKED` redessinée dans la grammaire du terminal.** Cadre
+  filaire à angles droits, le voile de l'OSD, `[+] UPLINKED` et la distance,
+  un filet vert qui raccourcit (le minuteur), la vraie photo en grand, le nom,
+  la description, des lignes clé/valeur à la place des pictogrammes, l'image
+  interceptée en petit, puis le crédit, qui renvoie désormais à la page du
+  fichier sur Commons. Les requêtes Wikimedia portent un `Api-User-Agent`
+  nommant le jeu et sa version. En fin de vol, l'écran récapitule les lieux
+  transmis. (#185)
+- **Le briefing a un cinquième écran, `CLEARANCE`** : le hangar, et ce qui le
+  fait avancer. Un opérateur déjà briefé le voit une fois, à son premier vol
+  FIELD après la mise à jour. La ligne de `DATA` au menu devient `flight
+  records · the signals you uplinked`. (#185)
 
 - **Une manette démarre en ANGLE.** L'acro à froid fait tomber un débutant en
   trois secondes, et une manette a désormais un bouton pour en sortir. Le
