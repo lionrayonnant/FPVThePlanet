@@ -13,8 +13,6 @@
 import { safeImageUrl } from '../tools/wikidata-model.mjs';
 import { cardRows, creditLine, recapTiles, MACHINE_NAMES } from '../tools/signal-card-model.mjs';
 
-const DATA_LINE = 'OSM · WIKIDATA';
-
 const el = (tag, cls, text) => {
 	const e = document.createElement(tag);
 	if (cls) e.className = cls;
@@ -92,8 +90,7 @@ function fillCard(dom, view) {
 	const machine = machineName(view.family);
 	dom.icptLine.textContent = `${machine ? `${machine} · ` : ''}HOLD ${view.holdS.toFixed(1)} s`;
 
-	const photo = creditLine(info);
-	dom.credit.textContent = photo ? `${photo} · ${DATA_LINE}` : `DATA © ${DATA_LINE}`;
+	dom.credit.textContent = creditLine(info);
 }
 
 export class SignalCard {

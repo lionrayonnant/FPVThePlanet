@@ -38,14 +38,16 @@ export function cardRows(signal, info) {
 	return rows.slice(0, MAX_ROWS);
 }
 
-// The photo's credit line. The data line ("DATA © OSM · WIKIDATA") is always
-// shown, separately, by the DOM — it does not depend on a photo existing.
+// The card's credit line, in DATA's form (tools/signals-data-model.mjs
+// creditOf + DATA_CREDIT; signal-card-selftest holds the two equal): the
+// photo's credit when there is one, then the data line, always.
+const DATA_CREDIT = 'DATA © OPENSTREETMAP · WIKIDATA';
 export function creditLine(info) {
 	const photo = info?.photo;
-	if (!photo) return null;
-	const artist = photo.artist ?? 'UNKNOWN';
-	const license = photo.license ?? 'UNKNOWN';
-	return `PHOTO © ${artist} · ${license} · WIKIMEDIA COMMONS`;
+	if (!photo) return DATA_CREDIT;
+	const artist = (photo.artist || 'UNKNOWN').toUpperCase();
+	const license = (photo.license || 'UNKNOWN').toUpperCase();
+	return `© ${artist} · ${license} · WIKIMEDIA COMMONS · ${DATA_CREDIT}`;
 }
 
 // The one-shot notice when control is acquired (the OSD's #fo-notice): the
@@ -62,6 +64,8 @@ export function takeoffNotice({ loading = false, done = 0, total = 0, count = 0 
 export const MACHINE_NAMES = {
 	freestyle5: '5" FREESTYLE', cinewhoop: 'CINEWHOOP', toothpick: 'TOOTHPICK',
 	race5: '5" RACE', longrange: 'LONG RANGE', heavy5: 'HEAVY 5"', swarm: 'THE SWARM',
+	// The family an uplink stores for the swarm flight (PROFILE.family).
+	swarmNode: 'THE SWARM',
 };
 const ROMAN = { 1: 'I', 2: 'II', 3: 'III' };
 

@@ -2,7 +2,8 @@
 // 2026-09-27-signals-lot2b). No DOM, no network.
 // Run: node tools/signal-card-selftest.mjs
 import assert from 'node:assert/strict';
-import { CARD_S, MAX_ROWS, cardRows, takeoffNotice, clearanceNotice, creditLine, CardQueue, recapTiles } from './signal-card-model.mjs';
+import { CARD_S, MAX_ROWS, cardRows, takeoffNotice, clearanceNotice, creditLine, CardQueue, recapTiles, MACHINE_NAMES } from './signal-card-model.mjs';
+import { creditOf, DATA_CREDIT } from './signals-data-model.mjs';
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log(`  ok  ${name}`); };
@@ -61,19 +62,35 @@ t('cardRows: a Wikidata height is rounded', () => {
 	assert.deepEqual(rows.find(([k]) => k === 'HEIGHT'), ['HEIGHT', '83 m']);
 });
 
-t('creditLine: artist and license present', () => {
+t('creditLine: artist and license present, then the data line', () => {
 	const info = { photo: { url: 'https://upload.wikimedia.org/x.jpg', artist: 'Camille Gévaudan', license: 'CC BY-SA 3.0' } };
-	assert.equal(creditLine(info), 'PHOTO © Camille Gévaudan · CC BY-SA 3.0 · WIKIMEDIA COMMONS');
+	assert.equal(creditLine(info), '© CAMILLE GÉVAUDAN · CC BY-SA 3.0 · WIKIMEDIA COMMONS · DATA © OPENSTREETMAP · WIKIDATA');
 });
 
 t('creditLine: no artist falls back to UNKNOWN', () => {
 	const info = { photo: { url: 'https://upload.wikimedia.org/x.jpg', artist: null, license: 'Public domain' } };
-	assert.equal(creditLine(info), 'PHOTO © UNKNOWN · Public domain · WIKIMEDIA COMMONS');
+	assert.equal(creditLine(info), '© UNKNOWN · PUBLIC DOMAIN · WIKIMEDIA COMMONS · DATA © OPENSTREETMAP · WIKIDATA');
 });
 
-t('creditLine: no photo, no info at all', () => {
-	assert.equal(creditLine({ photo: null }), null);
-	assert.equal(creditLine(null), null);
+t('creditLine: no photo, no info at all -> the data line alone', () => {
+	assert.equal(creditLine({ photo: null }), 'DATA © OPENSTREETMAP · WIKIDATA');
+	assert.equal(creditLine(null), 'DATA © OPENSTREETMAP · WIKIDATA');
+});
+
+t('creditLine: the same words as the DATA screen (creditOf + DATA_CREDIT)', () => {
+	for (const photo of [
+		{ artist: 'Camille Gévaudan', license: 'CC BY-SA 3.0' },
+		{ artist: '', license: null },
+		{ artist: 'x', license: 'cc0' },
+	]) {
+		assert.equal(creditLine({ photo }), `${creditOf({ photo }).text} · ${DATA_CREDIT}`);
+	}
+	assert.equal(creditLine(null), DATA_CREDIT);
+});
+
+t('MACHINE_NAMES: the swarm flight (family swarmNode) is THE SWARM', () => {
+	assert.equal(MACHINE_NAMES.swarmNode, 'THE SWARM');
+	assert.equal(MACHINE_NAMES.swarmNode, MACHINE_NAMES.swarm);
 });
 
 t('CardQueue: one card shows CARD_S seconds then empties', () => {
