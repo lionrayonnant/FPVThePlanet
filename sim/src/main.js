@@ -73,7 +73,7 @@ import { tilesAround, distanceM } from '../tools/signal-model.mjs';
 import { SignalCapture, HOLD_S } from './signal-capture.js';
 import { SignalTraces } from './signal-traces.js';
 import { TraceLine } from './trace-line.js';
-import { photoScore, shapeOf } from '../tools/trace-model.mjs';
+import { photoScore, photoAim, viewAngleDeg, shapeOf } from '../tools/trace-model.mjs';
 import { SignalAnchors } from './signal-anchor.js';
 import { SignalCallout } from './signal-callout.js';
 import { placeCallout, lensWarp } from '../tools/signal-callout-model.mjs';
@@ -2447,7 +2447,7 @@ function updateSignals(dt, frozen) {
 	}
 	const out = signalCapture.update({ dt: liveDt, cam, fpv: viewMode === 'fpv', los });
 	if (out.uplinked) onSignalUplinked(out.uplinked);
-	if (flying) scoreTracePhoto(out, liveDt, los);
+	if (flying) scoreTracePhoto(liveDt, cam);
 	// Warm the place info while the operator holds the landmark, so the card
 	// rarely waits for it after UPLINKED: once per id per flight, and only once
 	// the hold is real (a glance across a skyline is not a request).
@@ -2496,19 +2496,27 @@ function updateTrace(dt, followDt) {
 // Spec rule 7: while on the thread, at most 1 / TRACE_PHOTO_S, the view of the
 // landmark is scored (centre of the frame, line of sight); one better than the
 // best so far is captured right after this frame's render (pendingTracePhoto).
-function scoreTracePhoto(out, dt, los) {
+// Aimed at the landmark's mid-height (photoAim), not its anchor on the top.
+function scoreTracePhoto(dt, cam) {
 	const f = signalTraces.follower?.out;
 	if (!f || f.state !== 'on' || !(dt > 0) || viewMode !== 'fpv') return;
 	tracePhotoAt += dt;
 	if (tracePhotoAt < TRACE_PHOTO_S) return;
 	tracePhotoAt = 0;
 	const id = signalTraces.id;
-	const row = out.rows.find((r) => r.id === id);
-	const t = signalTargets.find((x) => x.id === id);
-	if (!row || !t?.pos) return;
-	const score = photoScore({ angleDeg: row.angleDeg, los: los(t) });
+	const aim = photoAim(signalTraces.anchor, signalTraces.profile);
+	if (!aim) return;
+	const score = photoScore({ angleDeg: viewAngleDeg(cam, aim), los: aimInSight(cam, aim) });
 	// Only a clearly better view: a score wobbling at the best retakes nothing.
 	if (score !== null && score > (traceBest?.id === id ? traceBest.score + TRACE_PHOTO_MARGIN : -1)) pendingTracePhoto = { id, score };
+}
+
+// The line of sight to a photo aim: stopped short by the landmark's radius at
+// that height plus the 6 m the anchor's test keeps (the point is inside it).
+function aimInSight(cam, aim) {
+	const dx = aim.x - cam.x, dy = aim.y - cam.y, dz = aim.z - cam.z;
+	const d = Math.hypot(dx, dy, dz), k = d > 0 ? Math.max(0, (d - aim.r - 6) / d) : 0;
+	return !physics.obstructionBetween(cam.x, cam.y, cam.z, cam.x + dx * k, cam.y + dy * k, cam.z + dz * k).blocked;
 }
 
 // The one way a photo is taken (the manual one, a trace's best view, the
@@ -2590,7 +2598,7 @@ function calloutView(row, now, box) {
 		{ boxW: box.w, boxH: box.h });
 	// Its trace in the world: TRACE · SHAPE · n % (or ENTER THE GATE). A trace
 	// target whose trace is not laid (another is flown, still being laid, or
-	// too far): TRACE · SHAPE · STANDBY — a hold would never fill it.
+	// too far): TRACE · STANDBY — a hold would never fill it.
 	const open = row.state !== 'resolved' && row.state !== 'encrypted';
 	const active = signalTraces.id === row.id;
 	const f = active && open ? signalTraces.follower?.out : null;

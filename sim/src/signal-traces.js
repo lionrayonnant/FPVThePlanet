@@ -47,6 +47,9 @@ export class SignalTraces {
 	get shape() { return this.active?.shape ?? null; }
 	get trace() { return this.active?.phase === 'ready' ? this.active.trace : null; }
 	get follower() { return this.active?.phase === 'ready' ? this.active.follower : null; }
+	// The trace's anchor and profile (the photo's aim, tools/trace-model.mjs photoAim).
+	get anchor() { return this.active?.anchor ?? null; }
+	get profile() { return this.active?.phase === 'ready' ? this.active.profile : null; }
 
 	// Disarm, bench: nothing survives into the next flight.
 	reset() {

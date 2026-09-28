@@ -440,7 +440,7 @@ colliders; one trace at a time. The shape comes from the signal's kind:
 | `spiral` | TOWER, LIGHTHOUSE, any other built kind over 50 m | ≥ 0.5 turn | ≥ 1.5 × tier II's turns |
 | `under` | BRIDGE, ARCH | one pass under the deck, 40 m either side | under, a half-loop out over the deck, back over, a half-loop down, under again (12 m along the deck) |
 | `dive` | PEAK, VOLCANO, WATERFALL, CLIFF, DAM | 60 m, from 40 m above the top down the steepest face | 160 m |
-| `orbit` | everything else, and a bridge without a usable deck (< 8 m clearance) | half a turn, level | 1.5 turns, rising 8 m per turn so the passes never overlay |
+| `orbit` | everything else, and a bridge without a usable deck (< 6 m clearance) | half a turn, level | 1.5 turns, rising 8 m per turn so the passes never overlay |
 
 The spiral wraps the whole structure, from 15 m above the ground to 10 m above
 the top: its radius at each height is the landmark's radius there + 12 m
@@ -454,13 +454,15 @@ than 15 m ahead. Off the line, progress pauses; after 10 s off, the flown part
 fades (2 s) and progress resets to the gate. The camera may look anywhere. The
 line is a ~2 px hairline seen through the lens, depth-tested, no fog, no glow:
 yellow ahead, green flown; hidden in every photo. The callout reads
-`TRACE · SPIRAL · 42 %` (`ENTER THE GATE` before the gate, `STANDBY` while it
-is not laid yet); at 100 % it is `UPLINKED`. The stored entry carries
+`TRACE · SPIRAL · 42 %` (`ENTER THE GATE` before the gate, `TRACE · STANDBY`
+while it is not laid yet); at 100 % it is `UPLINKED`. With the landmark out of
+the frame, the edge chevron keeps that headline instead of `SIGNAL 35 M`. The stored entry carries
 `trace: '<shape>'` and `holdS`, the seconds spent on it; the card and `DATA`
 show `TRACE SPIRAL · 38.2 s` instead of `HOLD 5.0 s`.
 
 The photo: while on the trace, at most twice a second, a view with the landmark
-within 35° of the frame centre and in line of sight is scored (closer to centre
+(its mid-height, not the anchor on its top) within 35° of the frame centre and
+in line of sight is scored (closer to centre
 is better); only a clearly better one replaces the kept frame. That frame is
 the intercepted photo; none seen, the uplink frame.
 

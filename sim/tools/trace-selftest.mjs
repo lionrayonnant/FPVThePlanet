@@ -4,7 +4,7 @@
 // Run: node tools/trace-selftest.mjs
 import assert from 'node:assert/strict';
 import {
-	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore,
+	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, viewAngleDeg,
 	SPACING_M, TOLERANCE_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
 } from './trace-model.mjs';
 
@@ -301,11 +301,16 @@ t('under III: pass, climb out over the deck, back over it, return pass drifted a
 	assert.ok(tr.length > 240 && tr.length < 360, `length ${tr.length}`);
 });
 
-t('under without an axis, or with less than 8 m of clearance, is an orbit', () => {
+t('under without an axis, or with less than 6 m of clearance, is an orbit', () => {
 	const noAxis = profileOf(bridgeAnchor, bridgeH);
 	assert.equal(buildTrace({ signal: sig('BRIDGE'), anchor: bridgeAnchor, profile: noAxis, tier: 3, approach: { x: 0, z: 100 } }).shape, 'orbit');
-	const low = profileOf(bridgeAnchor, bridgeH, { axis: { ...axis, deckY: 7.9 } });
+	const low = profileOf(bridgeAnchor, bridgeH, { axis: { ...axis, deckY: 5.9 } });
 	assert.equal(buildTrace({ signal: sig('ARCH'), anchor: bridgeAnchor, profile: low, tier: 2, approach: { x: 0, z: 100 } }).shape, 'orbit');
+	// 6 m (Pont Mirabeau in the mesh): flown under, the line centred in the gap.
+	const tight = profileOf(bridgeAnchor, bridgeH, { axis: { ...axis, deckY: 6 } });
+	const tr = buildTrace({ signal: sig('ARCH'), anchor: bridgeAnchor, profile: tight, tier: 2, approach: { x: 0, z: 100 } });
+	assert.equal(tr.shape, 'under');
+	for (let i = 0; i < count(tr); i++) assert.ok(Math.abs(pt(tr, i).y - 3) < 1e-3, `point ${i} at ${pt(tr, i).y}, not mid-gap`);
 });
 
 // A peak: 300 m at the centre, falling 2 m/m everywhere and 3 m/m towards the east.
@@ -504,6 +509,27 @@ t('photoScore: 1 at the centre, 0 at the edge of the 35° cone, null outside or 
 	assert.equal(photoScore({ angleDeg: 35.1, los: true }), null);
 	assert.equal(photoScore({ angleDeg: 0, los: false }), null);
 	assert.equal(photoScore({ angleDeg: NaN, los: true }), null);
+});
+
+t('photoAim: the landmark at mid-height with its radius there; no profile, the anchor', () => {
+	// A 300 m block, 25 m in radius: the 20 m ring reaches mid-height, the 35 m one does not.
+	const a = { x: 0, y: 303, z: 0 };
+	const p = profileOf(a, (x, z) => (Math.hypot(x, z) <= 25 ? 300 : 0));
+	const aim = photoAim(a, p);
+	assert.equal(aim.x, 0); assert.equal(aim.z, 0);
+	assert.ok(Math.abs(aim.y - 151.5) < 1e-9, `mid-height ${aim.y}`);
+	assert.ok(aim.r > 20 && aim.r < 35, `radius at mid-height ${aim.r}`);
+	assert.deepEqual(photoAim(a, null), { ...a, r: 0 });
+	assert.deepEqual(photoAim(a, { ...p, partial: true }), { ...a, r: 0 });
+	assert.equal(photoAim(null, p), null);
+});
+
+t('viewAngleDeg: 0 dead ahead, 90 abeam, 180 behind', () => {
+	const cam = { x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: -1 };
+	assert.equal(viewAngleDeg(cam, { x: 0, y: 0, z: -10 }), 0);
+	assert.ok(Math.abs(viewAngleDeg(cam, { x: 10, y: 0, z: 0 }) - 90) < 1e-9);
+	assert.ok(Math.abs(viewAngleDeg(cam, { x: 0, y: 0, z: 10 }) - 180) < 1e-9);
+	assert.ok(Math.abs(viewAngleDeg(cam, { x: 0, y: 10, z: -10 }) - 45) < 1e-9);
 });
 
 console.log(`trace: ${n} ok`);
