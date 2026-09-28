@@ -47,6 +47,15 @@ export function captureLine({ holdS, trace } = {}) {
 	return TRACE_SHAPES.includes(trace) ? `TRACE ${trace.toUpperCase()} · ${s}` : `HOLD ${s}`;
 }
 
+// The lines under the card's INTERCEPTED, one per line and none wrapping:
+// the machine (when known), then the capture. On one line,
+// `5" FREESTYLE · TRACE SPIRAL · 61.2 s` overflows the card and strands the
+// seconds alone below.
+export function interceptLines({ machine, holdS, trace } = {}) {
+	const how = captureLine({ holdS, trace });
+	return machine ? [machine, how] : [how];
+}
+
 // The card's credit line, in DATA's form (tools/signals-data-model.mjs
 // creditOf + DATA_CREDIT; signal-card-selftest holds the two equal): the
 // photo's credit when there is one, then the data line, always.

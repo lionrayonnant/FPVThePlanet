@@ -11,7 +11,7 @@
 // frame we captured ourselves (a `data:image/` URL) or a Commons URL already
 // checked by safeImageUrl.
 import { safeImageUrl } from '../tools/wikidata-model.mjs';
-import { cardRows, creditLine, recapTiles, captureLine, MACHINE_NAMES } from '../tools/signal-card-model.mjs';
+import { cardRows, creditLine, recapTiles, interceptLines, MACHINE_NAMES } from '../tools/signal-card-model.mjs';
 
 const el = (tag, cls, text) => {
 	const e = document.createElement(tag);
@@ -38,14 +38,14 @@ function buildCard() {
 	const icpt = el('div', 'signal-card-icpt');
 	const shot = el('img'); shot.alt = '';
 	const icptText = el('span');
-	const icptLine = el('span');
-	icptText.append('INTERCEPTED', document.createElement('br'), icptLine);
+	const icptLines = el('span');
+	icptText.append('INTERCEPTED', document.createElement('br'), icptLines);
 	icpt.append(shot, icptText);
 
 	const credit = el('div', 'signal-card-credit');
 
 	root.append(hd, rule, ref, name, desc, rows, icpt, credit);
-	return { el: root, n, rule, ref, name, desc, rows, shot, icptLine, credit, _for: null, _n: '', _k: '' };
+	return { el: root, n, rule, ref, name, desc, rows, shot, icptLines, credit, _for: null, _n: '', _k: '' };
 }
 
 const isFrame = (src) => typeof src === 'string' && src.startsWith('data:image/');
@@ -88,7 +88,11 @@ function fillCard(dom, view) {
 	dom.shot.hidden = !isFrame(frameSrc);
 	if (!dom.shot.hidden) dom.shot.src = frameSrc; else dom.shot.removeAttribute('src');
 	const machine = machineName(view.family);
-	dom.icptLine.textContent = `${machine ? `${machine} · ` : ''}${captureLine(view)}`;
+	dom.icptLines.replaceChildren();
+	interceptLines({ machine, holdS: view.holdS, trace: view.trace }).forEach((t, i) => {
+		if (i) dom.icptLines.append(document.createElement('br'));
+		dom.icptLines.append(t);
+	});
 
 	dom.credit.textContent = creditLine(info);
 }
