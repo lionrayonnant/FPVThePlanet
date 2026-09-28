@@ -162,10 +162,9 @@ export class SignalTraces {
 		const a = this.active;
 		a.phase = 'probe';
 		a.profile = null;
-		// An orbit (a bridge's fallback too) may be wider than the 80 m grid; a
-		// dive needs the reach for its 45° descent.
-		const outer = a.shape === 'dive' ? 'always' : a.shape === 'under' || a.shape === 'orbit';
-		this.probe.start(a.anchor, { axis: a.shape === 'under', outer });
+		// Only a dive needs the outer rings (the reach for its 45° descent): an
+		// orbit, a bridge's fallback too, stays within ORBIT_MAX_R_M + its pad.
+		this.probe.start(a.anchor, { axis: a.shape === 'under', outer: a.shape === 'dive' ? 'always' : false });
 	}
 
 	_build(pos) {

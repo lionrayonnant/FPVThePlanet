@@ -32,6 +32,10 @@ const RADIUS_STEP_M = 8;      // per attempt
 const ORBIT_ABOVE_M = 6;      // above the anchor (the anchor already sits above the top)
 const ORBIT_OVER_SURF_M = 6;  // above the profile at the radius
 const ALT_STEP_M = 6;         // per attempt
+// An orbit is a ring to fly and read, not the outline of a 300 m bridge: never
+// wider than this, whatever the landmark (it may then cross a deck or a quay).
+export const ORBIT_MAX_R_M = 50;
+const ORBIT_CLEAR_PAD_M = 10; // its altitude clears everything probed within R + 10 m
 const ARC = { 2: Math.PI, 3: 3 * Math.PI };
 // Tier III orbit: a helix, so its 1.5 turns never overlay. 8 m per turn keeps
 // two passes over each other more than 2 × 3.5 m apart.
@@ -203,6 +207,14 @@ function maxAtRadius(profile, anchor, R) {
 	return m;
 }
 
+// Highest probed surface within radius R: every ring inside it, and the
+// circle at R itself (interpolated between the rings that straddle it).
+function maxWithin(profile, anchor, R) {
+	let m = maxAtRadius(profile, anchor, R);
+	for (const ring of profile.rings) if (ring.r <= R) m = Math.max(m, ringMax(profile, ring));
+	return m;
+}
+
 function validProfile(p) {
 	// A partial profile read unstreamed geometry as ground: no trace from it.
 	return p && !p.partial && Array.isArray(p.rings) && p.rings.length > 0 && Number.isFinite(p.ground) && Number.isFinite(p.top)
@@ -233,14 +245,12 @@ function buildRing({ anchor, R, theta0, dir, arc, y0, y1 }) {
 
 function buildOrbit(ctx) {
 	const { anchor, profile, tier, attempt, theta0, dir } = ctx;
-	// Never past the probed grid: beyond it the altitude would be blind to
-	// what stands there (a bridge's riverbank). src/trace-probe.js adds outer
-	// rings when the landmark reaches the grid's edge.
-	// Once R is capped there, the attempt's radius step is a no-op: retries
-	// then differ by altitude (ALT_STEP_M) alone.
+	// Capped at ORBIT_MAX_R_M (and the probed grid). Once capped, the
+	// attempt's radius step is a no-op: retries then differ by altitude
+	// (ALT_STEP_M) alone.
 	const edge = profile.rings[profile.rings.length - 1].r;
-	const R = Math.min(outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M, edge);
-	const y = Math.max(anchor.y + ORBIT_ABOVE_M, maxAtRadius(profile, anchor, R) + ORBIT_OVER_SURF_M) + attempt * ALT_STEP_M;
+	const R = Math.min(outlineRadius(profile, anchor) + RADIUS_MARGIN_M + attempt * RADIUS_STEP_M, ORBIT_MAX_R_M, edge);
+	const y = Math.max(anchor.y + ORBIT_ABOVE_M, maxWithin(profile, anchor, R + ORBIT_CLEAR_PAD_M) + ORBIT_OVER_SURF_M) + attempt * ALT_STEP_M;
 	// Tier II (half a turn) stays level; tier III climbs so its turns never overlay.
 	const rise = tier >= 3 ? ORBIT_RISE_PER_TURN_M * ARC[tier] / TAU : 0;
 	return buildRing({ anchor, R, theta0, dir, arc: ARC[tier], y0: y, y1: y + rise });

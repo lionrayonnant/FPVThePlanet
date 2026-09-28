@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {
 	shapeOf, seedOf, turnDir, buildTrace, surfaceAt, TraceFollower, photoScore, photoAim, photoInSight, viewAngleDeg,
-	SPACING_M, TOLERANCE_M, TURN_GAP_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
+	SPACING_M, TOLERANCE_M, TURN_GAP_M, ORBIT_MAX_R_M, WINDOW_M, OFF_RESET_S, FADE_S, PHOTO_CONE_DEG,
 } from './trace-model.mjs';
 
 let n = 0;
@@ -174,6 +174,31 @@ t('orbit: a low landmark on flat ground keeps a tight ring', () => {
 	const p = profileOf(a, (x, z) => (Math.hypot(x, z) < 3 ? 5 : 0));
 	const tr = buildTrace({ signal: sig('ATTRACTION'), anchor: a, profile: p, tier: 2, approach: { x: 0, z: 300 } });
 	assert.ok(Math.abs(hdist(pt(tr, 0), a) - 12) < 0.1, `radius ${hdist(pt(tr, 0), a)}`);
+});
+
+t('orbit: never wider than ORBIT_MAX_R_M (a long bridge); its altitude clears what lies within R + 10 m; retries climb', () => {
+	// A 20 m wide deck at 35 m running east-west past the 140 m ring, water at
+	// 25 m, a 48 m quay block 52–58 m south: the outline reaches the grid's edge.
+	const a = { x: 0, y: 38, z: 0 };
+	const h = (x, z) => (Math.abs(z) <= 10 ? 35 : z >= 52 && z <= 58 ? 48 : 25);
+	const p = profileOf(a, h);
+	for (const r of [110, 140]) {
+		const heights = new Float32Array(32);
+		for (let k = 0; k < 32; k++) { const th = (k / 32) * 2 * Math.PI; heights[k] = h(r * Math.cos(th), r * Math.sin(th)); }
+		p.rings.push({ r, heights });
+	}
+	const ys = [];
+	for (const attempt of [0, 1, 2]) {
+		for (const tier of [2, 3]) {
+			const tr = buildTrace({ signal: sig('BRIDGE'), anchor: a, profile: p, tier, approach: { x: 0, z: 300 }, attempt });
+			assert.equal(tr.shape, 'orbit');
+			for (let i = 0; i < count(tr); i++) assert.ok(Math.abs(hdist(pt(tr, i), a) - ORBIT_MAX_R_M) < 0.1, `radius ${hdist(pt(tr, i), a)}`);
+			if (tier === 2) ys.push(pt(tr, 0).y);
+		}
+	}
+	assert.equal(ORBIT_MAX_R_M, 50);
+	assert.ok(Math.abs(ys[0] - (48 + 6)) < 1e-3, `over the quay block within 60 m: ${ys[0]}`);
+	assert.ok(Math.abs(ys[1] - ys[0] - 6) < 1e-3 && Math.abs(ys[2] - ys[1] - 6) < 1e-3, 'capped: each retry 6 m higher');
 });
 
 t('a partial profile builds no trace', () => {

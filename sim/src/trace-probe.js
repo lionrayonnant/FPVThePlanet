@@ -21,9 +21,9 @@ export const ANGLES = 16;
 export const PROBE_ABOVE_M = 300;    // down rays start this far above the anchor
 export const PROBE_DEPTH_M = 1000;   // and reach this far down
 export const PARTIAL_MISS_FRAC = 0.25; // more misses than this: the profile is `partial`
-// Outer rings (orbit / under only): probed when the landmark still stands at
-// the 80 m ring — a bridge's deck, a long façade — so an orbit wider than the
-// grid does not fly blind into what stands beyond it (a bridge's riverbank).
+// Outer rings: a dive asks them always (its 45° descent's reach). `outer: true`
+// asks them only when the landmark still stands at the 80 m ring; the game no
+// longer does (an orbit is capped at 50 m, tools/trace-model.mjs).
 export const OUTER_RINGS_M = [110, 140];
 export const OUTER_ANGLES = 32;
 export const OUTER_REACH_M = 11;     // a height this close under the anchor (its top 3 m + the 8 m band) reaches
