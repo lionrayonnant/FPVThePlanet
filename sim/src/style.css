@@ -413,7 +413,8 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 .signal-card-ref { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: cover; }
 .signal-card-name {
 	margin-top: var(--space-2);
-	font: 400 var(--fs-display-s) / 1.2 var(--font-display); letter-spacing: var(--track-display);
+	/* The mockup's 12 px, snapped to the micro level: Departure Mono's 11 px grid. */
+	font: 400 var(--fs-micro) / 1.2 var(--font-display); letter-spacing: var(--track-display);
 	text-transform: uppercase;
 }
 .signal-card-desc {
@@ -1378,12 +1379,22 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	color: var(--dim); white-space: pre;
 }
 .bootstrap-box pre.signals-locked, .bootstrap-box pre.signals-more { color: var(--faint); }
-.signals-scrambled { font-family: var(--font-ascii); color: var(--faint); }
+/* The scrambled name draws in Departure Mono (the block glyphs), whose advance
+   is 7/11 em against IBM Plex Mono's 0.6 em: tightened by the difference, its
+   28 columns end where a [+] row's do, and the right column lines up. */
+.signals-scrambled {
+	font-family: var(--font-ascii); color: var(--faint);
+	letter-spacing: calc(var(--track-data) - 0.0364em);
+}
 .signals-mark-up { color: var(--green); }
 button.signals-row:hover .signals-mark-up { color: inherit; }
 .bootstrap-box pre.signals-hint { color: var(--faint); margin-top: 0; }
 
 .terminal-capture .bootstrap-box { width: min(640px, 88vw); gap: var(--space-2); }
+/* FLY THERE · PREVIOUS · NEXT · BACK: one row at the column's width, down to
+   a 720 px window — tighter frames and gap than the screen default. */
+.terminal-capture .terminal-acts { flex-wrap: nowrap; gap: var(--space-2); }
+.terminal-capture .terminal-acts button { padding-inline: var(--space-3); white-space: nowrap; }
 .bootstrap-box pre.capture-title { white-space: pre-wrap; }
 .bootstrap-box pre.capture-foot { white-space: pre-wrap; margin: 0 0 var(--space-2); }
 /* The real place: the column's full width, 3:2, bare. */
@@ -1396,7 +1407,7 @@ img.capture-ref {
 	letter-spacing: var(--track-data); color: var(--faint);
 }
 a.capture-source {
-	color: var(--dim); text-decoration: none;
+	color: var(--dim); text-decoration: none; white-space: nowrap;
 	border-bottom: var(--rule-w) solid var(--rule-strong);
 }
 a.capture-source:hover, a.capture-source:focus { background: var(--warm-white); color: var(--black); }
