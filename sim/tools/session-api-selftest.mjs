@@ -188,6 +188,28 @@ try {
 	const missing = await call('GET', `/__operator/${id}/sessions/nexiste-pas-0000`);
 	check('GET .../sessions/:sid unknown -> 404', missing.status === 404);
 
+	// --- one photo, as bytes (issue #185, task 7) -------------------------------
+	const photoRes = await fetch(`${base}/__operator/${id}/sessions/${sid1}/photos/0`);
+	const photoBytes = Buffer.from(await photoRes.arrayBuffer());
+	const expectedBytes = Buffer.from(PHOTO.dataUrl.split(',')[1], 'base64');
+	check('GET .../photos/:i: 200, image/jpeg, bytes equal the decoded base64',
+		photoRes.status === 200
+		&& photoRes.headers.get('content-type') === 'image/jpeg'
+		&& photoBytes.equals(expectedBytes));
+	check('GET .../photos/:i: cache-control is private and immutable',
+		photoRes.headers.get('cache-control') === 'private, max-age=31536000, immutable');
+
+	const photoBadSid = await fetch(`${base}/__operator/${id}/sessions/not-a-real-sid/photos/0`);
+	check('GET .../photos/:i: bad sid -> 404', photoBadSid.status === 404);
+
+	const photoOutOfRange = await fetch(`${base}/__operator/${id}/sessions/${sid1}/photos/9`);
+	check('GET .../photos/:i: out-of-range index -> 404', photoOutOfRange.status === 404);
+
+	const photoOp2 = await call('POST', '/__operator', { name: 'apiphoto2' });
+	const photoOtherId = photoOp2.body.operator.id;
+	const photoCrossOperator = await fetch(`${base}/__operator/${photoOtherId}/sessions/${sid1}/photos/0`);
+	check("GET .../photos/:i: another operator's session -> 404", photoCrossOperator.status === 404);
+
 	// --- deletion ----------------------------------------------------------
 	const pending = await call('DELETE', `/__operator/${id}/sessions/${sid2}`);
 	check('DELETE a PENDING session -> 409', pending.status === 409);

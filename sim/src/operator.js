@@ -1,20 +1,20 @@
-// État opérateur, côté client. Aucun DOM.
+// Operator state, client side. No DOM.
 //
-// L'identité du client vit dans localStorage (fpvtp.operatorId) et accompagne
-// chaque requête : c'est ce qui permet à deux personnes de jouer en même temps
-// sur le même serveur de dev. Le serveur ne décide jamais « qui tu es ».
-// Repli quand la clé manque (navigateur neuf ou vidé) : l'appelant montre
-// toujours OPERATOR SELECT — même avec un seul opérateur sur disque, pour
-// qu'un nouveau client (ex. ami sur un tunnel ngrok partagé) puisse créer le
-// sien plutôt que d'hériter du tien.
+// The client's identity lives in localStorage (fpvtp.operatorId) and rides
+// along with every request: that is what lets two people play at once on the
+// same dev server. The server never decides "who you are".
+// Fallback when the key is missing (a fresh or cleared browser): the caller
+// always shows OPERATOR SELECT — even with a single operator on disk, so a
+// new client (e.g. a friend on a shared ngrok tunnel) can create their own
+// instead of inheriting yours.
 //
-// La CLÉ d'opérateur (fpvtp.operatorKey, issue #60) est autre chose : un
-// secret de 128 bits rendu une fois à la création, envoyé en `Authorization:
-// Bearer` sur chaque requête. Un serveur `local` ne la regarde jamais ; un
-// serveur `shared` la réclame. Elle n'a RIEN à voir avec le Control Vector
-// (Bible §33) : celui-ci est un rituel de jeu, celle-là un secret technique.
-// Elle n'est JAMAIS montrée à l'inscription — le navigateur la garde, point.
-// Sur 401/403 on efface id ET clé et l'appelant montre OPERATOR KEY.
+// The operator KEY (fpvtp.operatorKey, issue #60) is a different thing: a
+// 128-bit secret handed out once at creation, sent as `Authorization: Bearer`
+// on every request. A `local` server never looks at it; a `shared` one
+// requires it. It has NOTHING to do with the Control Vector (Bible §33): that
+// one is an in-game ritual, this one a technical secret. It is NEVER shown at
+// signup — the browser keeps it, full stop. On 401/403 both the id and the
+// key are erased and the caller shows OPERATOR KEY.
 
 const OP_BASE = '/__operator';
 const KEY = 'fpvtp.operatorId';
@@ -211,6 +211,19 @@ export async function deleteSession(sid) {
 export async function postPhoto(sid, body) {
 	if (!cache) throw new Error('aucun opérateur chargé');
 	return (await req('POST', `/${cache.id}/sessions/${sid}/photos`, body)).session;
+}
+
+// One session photo, as bytes (issue #185, task 7). Unlike req(), this route
+// never answers JSON, and the bearer key still has to ride along — so it
+// fetches directly rather than going through req(). The caller owns the
+// returned object URL and must revoke it when done with it.
+export async function fetchPhoto(sessionId, index) {
+	if (!cache) throw new Error('aucun opérateur chargé');
+	const res = await _fetch(`${OP_BASE}/${cache.id}/sessions/${sessionId}/photos/${index}`, {
+		headers: authHeaders(),
+	});
+	if (!res.ok) return null;
+	return URL.createObjectURL(await res.blob());
 }
 
 // La piste de vol (issue #24). Une seule écriture, à la clôture, APRÈS le PATCH

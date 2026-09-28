@@ -480,6 +480,39 @@ const opRoutes = [
 		json(res, 201, { session: stripPhotoData(session) });
 	}],
 
+	// One session photo, as bytes (issue #185, task 7): the terminal's SIGNALS /
+	// UPLINKED views want an <img src> or an object URL, not another base64
+	// round-trip through JSON. Same checkOrigin()+checkKey() gate as every other
+	// operator route (applied by the dispatcher before this handler runs);
+	// `sid` is checked against SESSION_ID_RE here because, unlike the JSON
+	// routes, a malformed one must not even reach `state.sessions.find`.
+	// `cache-control` is `immutable`: a stored photo never changes, only a
+	// whole new capture appends a new index.
+	['GET', /^\/([^/]+)\/sessions\/([^/]+)\/photos\/([^/]+)$/, async (req, res, [id, sid, rawIndex]) => {
+		if (!SESSION_ID_RE.test(sid)) return json(res, 404, { error: `no session "${sid}"` });
+		if (!/^\d+$/.test(rawIndex)) return json(res, 404, { error: `invalid photo index "${rawIndex}"` });
+		const i = Number(rawIndex);
+
+		let state;
+		try { state = _readOperator(id); }
+		catch (e) { return json(res, opReadErrorStatus(e), { error: e.message }); }
+		if (!state) return json(res, 404, { error: `no operator "${id}"` });
+
+		const session = state.sessions.find((s) => s.id === sid);
+		if (!session) return json(res, 404, { error: `no session "${sid}"` });
+		const photo = (session.photos ?? [])[i];
+		if (!photo) return json(res, 404, { error: `no photo ${i} on session "${sid}"` });
+
+		const m = PHOTO_DATA_URL_RE.exec(photo.dataUrl ?? '');
+		if (!m) return json(res, 404, { error: 'unsupported photo encoding' });
+		if (res.headersSent || res.writableEnded) return;
+		res.writeHead(200, {
+			'content-type': `image/${m[1]}`,
+			'cache-control': 'private, max-age=31536000, immutable',
+		});
+		res.end(Buffer.from(m[2], 'base64'));
+	}],
+
 	// The flight track (issue #24). Written ONCE, at the closing (D4), after
 	// the session PATCH: a track without a session makes no sense, and losing
 	// the track must never cost the session. Idempotent — a second PUT
@@ -653,6 +686,10 @@ function json(res, code, body) {
 // A base64-encoded capture quickly goes past the megabyte of an ordinary JSON
 // body (photo + ~33% base64 overhead): a dedicated cap for this route.
 const PHOTO_BODY_MAX = 8e6;
+
+// What sanitizePhoto() accepts on the way in (tools/session-model.mjs), read
+// back out: the three formats the capture pipeline can produce, nothing else.
+const PHOTO_DATA_URL_RE = /^data:image\/(jpeg|png|webp);base64,([a-zA-Z0-9+/]+=*)$/;
 
 // A cross-site request that skips the preflight can only carry a CORS-safelisted
 // content type — `text/plain`, a form encoding, or none at all — never
