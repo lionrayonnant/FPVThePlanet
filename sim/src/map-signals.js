@@ -273,7 +273,6 @@ export function createSignalsLayer(L, {
 			if (map.getZoom() >= LABEL_ZOOM) {
 				ctx.font = '11px "IBM Plex Mono", monospace';
 				ctx.textBaseline = 'middle';
-				ctx.fillStyle = ink;
 				// A dark halo under each name: yellow text alone drowns in a
 				// bright satellite basemap.
 				ctx.strokeStyle = withAlpha(black, 0.85);
@@ -288,7 +287,13 @@ export function createSignalsLayer(L, {
 					if (!widths.has(name)) widths.set(name, ctx.measureText(name).width);
 					return widths.get(name);
 				};
+				// A name takes its light's colour: yellow only for what can be
+				// captured (functional colours, Bible §19).
+				const tone = new Map();
+				for (const p of uplinked) tone.set(p.s.id, resolvedInk);
+				for (const p of locked) tone.set(p.s.id, withAlpha(white, 0.6));
 				for (const { s, x, y } of placeLabels(pts, measure, { dx: LABEL_DX, h: LABEL_H, core: CORE })) {
+					ctx.fillStyle = tone.get(s.id) ?? ink;
 					ctx.strokeText(s.name, x + LABEL_DX, y);
 					ctx.fillText(s.name, x + LABEL_DX, y);
 				}
