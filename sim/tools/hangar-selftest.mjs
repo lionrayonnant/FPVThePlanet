@@ -161,6 +161,67 @@ await t('destroy() stops the loop; a detached hangar stops itself', async () => 
 	assert.equal(dom.window.__rafCount, after);
 });
 
+await t('a hangar attached late (after 5 s) is not freed; one on screen then dropped is', async () => {
+	// The end screen builds its hangar before the line holding it types out.
+	// The wall clock is pushed 10 s ahead while it waits detached.
+	const realNow = performance.now.bind(performance);
+	let skew = 0;
+	const nowDesc = Object.getOwnPropertyDescriptor(performance, 'now');
+	Object.defineProperty(performance, 'now', { value: () => realNow() + skew, configurable: true, writable: true });
+	try {
+		const host = document.createElement('div');
+		const h = mountHangar(host, { store: storeWith(6), reveal: 1, createRenderer: () => null });
+		dom.tick(16);                  // detached: pauses, polls
+		skew = 10_000;
+		await new Promise((r) => setTimeout(r, 300));   // the poll re-schedules a frame
+		dom.tick(10_000);
+		assert.equal(h.destroyed, false, 'still waiting for its host');
+		dom.root.appendChild(host);
+		await new Promise((r) => setTimeout(r, 300));
+		dom.tick(16);
+		assert.equal(h.destroyed, false, 'attached late, alive');
+		assert.equal(host.querySelectorAll('.hangar-m').length, 7);
+		host.remove();
+		dom.tick(16);
+		assert.equal(h.destroyed, true, 'seen, then dropped: freed');
+	} finally {
+		if (nowDesc) Object.defineProperty(performance, 'now', nowDesc);
+		else delete performance.now;
+	}
+});
+
+await t('the loop paints at ~30 fps, whatever the display rate', async () => {
+	// One renderer.clear() per painted frame.
+	let paints = 0;
+	const fake = () => ({
+		domElement: Object.assign(document.createElement('canvas'), {
+			getBoundingClientRect: () => ({ left: 0, top: 0, width: 700, height: 130 }),
+		}),
+		setPixelRatio() {}, getPixelRatio: () => 1, setSize() {}, clear() { paints++; },
+		setScissorTest() {}, setViewport() {}, setScissor() {},
+		render() {}, dispose() {}, forceContextLoss() {},
+	});
+	const host = document.createElement('div');
+	dom.root.appendChild(host);
+	const h = mountHangar(host, { store: storeWith(0), createRenderer: fake });
+	// The fake DOM lays nothing out: give the row a size so a frame paints.
+	const wrap = host.querySelector('.hangar-wrap');
+	Object.defineProperty(wrap, 'clientWidth', { value: 700, configurable: true });
+	Object.defineProperty(wrap, 'clientHeight', { value: 130, configurable: true });
+	for (const st of host.querySelectorAll('.hangar-stage')) st.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0 });
+	dom.tick(16);
+	assert.equal(paints, 1, 'the first frame paints');
+	paints = 0;
+	for (let i = 0; i < 60; i++) dom.tick(1000 / 60);    // 1 s at 60 Hz
+	const at60 = paints;
+	paints = 0;
+	for (let i = 0; i < 144; i++) dom.tick(1000 / 144);  // 1 s at 144 Hz
+	const at144 = paints;
+	h.destroy();
+	assert.ok(at60 >= 28 && at60 <= 31, `60 Hz: ${at60} paints/s`);
+	assert.ok(at144 >= 26 && at144 <= 31, `144 Hz: ${at144} paints/s`);
+});
+
 await t('destroy() disposes the ONE renderer and releases its context at once', async () => {
 	// A renderer that records rather than draws — enough for the first frame
 	// to build every slot's mesh through it.

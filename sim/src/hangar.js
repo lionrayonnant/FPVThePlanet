@@ -17,8 +17,13 @@
 //
 // The renderer and the meshes are built lazily, on the first frame the hangar
 // is actually on screen. A hangar that is hidden pauses; one that is detached
-// frees itself on the next frame (the end screen and DATA rebuild their DOM
-// and never call destroy() on a node they dropped).
+// after having been on screen frees itself on the next frame (the end screen
+// and DATA rebuild their DOM and never call destroy() on a node they dropped).
+// One not yet attached waits for its host however long that takes — the end
+// screen builds its node before the line holding it has typed out — and its
+// owner destroys it if it never shows (main.js endHangar, target-scan.js,
+// briefing.js, terminal.js). The loop draws at ~30 fps: a slow turntable and
+// a drifting backdrop gain nothing from 60 or 144.
 import * as THREE from 'three';
 import { shapeOf, RECIPE_PROFILES } from './drone-shape.js';
 import { buildDroneMesh, setSun, setTime, setLedFade, setResolution } from './drone-mesh.js';
@@ -46,7 +51,8 @@ const TEAR_DX = [0, 7, -5, 3, -8, 4];   // px at a 106 px tall slot, per slice
 const REVEAL_DELAY_S = 0.5;     // the eye lands before the sweep starts
 const REVEAL_S = 1.2;
 const PAUSE_POLL_MS = 250;
-const ORPHAN_MS = 5000;         // never attached within this: freed
+const FRAME_MS = 1000 / 30;     // the loop's cap…
+const FRAME_SLACK_MS = 2;       // …less the vsync jitter, so 60 Hz paints every other frame
 
 const el = (tag, cls, text) => {
 	const e = document.createElement(tag);
@@ -249,8 +255,8 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 	const handle = { destroyed: false, destroy };
 	let raf = 0;
 	let timer = null;
-	let seen = false;
-	const born = performance.now();
+	let seen = false;          // on screen at least once: from then on, a detach frees it
+	let lastPaint = null;
 	let t0 = null;
 	let revealAt = null;
 	let gl = null;       // { renderer, scene, camera, uSil, silFlat, silBright, distance } once built
@@ -277,12 +283,14 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 		raf = 0;
 		if (handle.destroyed) return;
 		if (!host.isConnected || !root.isConnected) {
-			if (seen || performance.now() - born > ORPHAN_MS) { destroy(); return; }
+			if (seen) { destroy(); return; }
 			pause();
 			return;
 		}
 		seen = true;
 		if (document.hidden || root.checkVisibility?.() === false) { pause(); return; }
+		if (lastPaint !== null && ms - lastPaint < FRAME_MS - FRAME_SLACK_MS) { schedule(); return; }
+		lastPaint = ms;
 		if (t0 === null) t0 = ms;
 		const t = (ms - t0) / 1000;
 		if (revealAt === null) revealAt = t + REVEAL_DELAY_S;
@@ -344,14 +352,16 @@ export function mountHangar(host, { store, reveal = null, compact = false, creat
 			const py = (((b.y + b.sy * s) % 1) + 1) % 1 * H;
 			const R = b.r * Math.max(W, H) * (0.9 + 0.1 * Math.sin(ms / 1400 + b.p));
 			const g = x.createRadialGradient(px, py, 0, px, py, R);
-			g.addColorStop(0, `rgba(${b.c},.28)`);
+			// .28 washed the row lavender over the locked silhouettes; .14 lost
+			// the dome's colours and the silhouettes' contrast with them.
+			g.addColorStop(0, `rgba(${b.c},.20)`);
 			g.addColorStop(1, `rgba(${b.c},0)`);
 			x.fillStyle = g;
 			x.fillRect(0, 0, W, H);
 		}
 		x.lineWidth = 1;
 		for (let k = 0; k < 5; k++) {
-			x.strokeStyle = `rgba(${blobs.cols[k % 4]},.10)`;
+			x.strokeStyle = `rgba(${blobs.cols[k % 4]},.07)`;
 			x.beginPath();
 			for (let i = 0; i <= 40; i++) {
 				const u = i / 40;
