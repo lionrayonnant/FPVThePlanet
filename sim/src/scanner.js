@@ -29,6 +29,7 @@ import { createTracksLayer } from './map-tracks.js';
 import * as operatorApi from './operator.js';
 import { token } from './palette.js';
 import { LAYERS } from './map-layers.js';
+import { FEATURED_DROPS, firstDropFor } from '../tools/featured-drops.mjs';
 
 const API = '/__map-api';
 
@@ -42,6 +43,8 @@ const RE_COORDS = /^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*$/;
 
 // The scanner's last view, to reopen where it was left within the session.
 let lastView = { center: [48.8582, 2.297], zoom: 13 };
+// Whether the first featured drop has already been pinned for a new operator.
+let autoDropped = false;
 
 // The search lives outside the rail: all it does is move the map, and it
 // serves both FIELD tabs (#222). The Home gives it its own host, above the
@@ -106,6 +109,12 @@ const LIVE_PANEL = `
 	<pre class="sc-hint sc-pin-hint">CLICK THE MAP TO DROP A PIN</pre>
 	<pre class="sc-pin-place" hidden></pre>
 	<pre class="sc-hint sc-pin-coords" hidden></pre>
+</section>
+
+<section class="sc-block">
+	<pre class="sc-h">FEATURED DROPS</pre>
+	<div class="sc-results sc-drops">${FEATURED_DROPS.map((d) =>
+		`<button type="button" class="sc-result sc-drop" data-drop="${d.id}">${d.name}</button>`).join('')}</div>
 </section>
 
 <section class="sc-block sc-verbs">
@@ -505,6 +514,10 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	let pinLayer = null;
 	function setPin(lat, lon) {
 		state.pin = { lat, lon };
+		for (const b of liveHost.querySelectorAll('.sc-drop')) {
+			const d = FEATURED_DROPS.find((x) => x.id === b.dataset.drop);
+			b.setAttribute('aria-pressed', String(d.lat === lat && d.lon === lon));
+		}
 		if (!pinLayer) {
 			pinLayer = L.marker([lat, lon], {
 				draggable: true,
@@ -534,6 +547,16 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 		if (state.mode !== 'live') return;
 		setPin(e.latlng.lat, e.latlng.lng);
 	});
+
+	// A featured drop (#200): the map goes there and the pin drops in one click,
+	// so a first flight needs no knowledge of where the 3D coverage is.
+	function dropAt(d) {
+		map.setView([d.lat, d.lon], 16);
+		setPin(d.lat, d.lon);
+	}
+	for (const b of liveHost.querySelectorAll('.sc-drop')) {
+		b.onclick = () => dropAt(FEATURED_DROPS.find((d) => d.id === b.dataset.drop));
+	}
 
 	// The Home's tab. In LIVE a click drops a pin and the detail switch (which
 	// only concerns extraction) withdraws from the map.
@@ -1208,6 +1231,11 @@ export function runScanner({ mapHost, searchHost, railHost, liveHost, onZone = n
 	// ------------------------------------------------------------ startup
 	clearZone();
 	loadScenes();
+	// An operator who has never flown finds the first featured drop already
+	// pinned: [ FLY LIVE ] is open from the first frame (#200). Once per page
+	// load: coming back to FIELD must not move a map they have since moved.
+	const first = autoDropped ? null : firstDropFor(operatorApi.getOperator());
+	if (first) { autoDropped = true; dropAt(first); }
 	// The sources offered come from the server. On failure only AUTO is kept:
 	// the pipeline will choose its default, exactly as before there were two
 	// providers.

@@ -1423,6 +1423,8 @@ canvas.data-graph { display: block; width: 100%; margin: var(--space-1) 0; }
 	color: var(--dim); font: inherit; font-size: var(--fs-ui); cursor: pointer;
 }
 .sc-result:hover { background: var(--warm-white); color: var(--black); }
+/* The featured drop the pin currently sits on. */
+.sc-drop[aria-pressed="true"] { color: var(--ink); }
 
 /* Bible §38's label / value template: two aligned columns, the label set back,
    the value in full ink and in tabular figures. */
