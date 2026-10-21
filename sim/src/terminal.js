@@ -19,7 +19,6 @@ import { armConfirm } from './confirm-button.js';
 import { versionLine, SOURCE_URL, SOURCE_CALL, LICENCE } from './version.js';
 import { iconDataUri } from './pixel-icons.js';
 import { token } from './palette.js';
-import { TIP_BUTTONS, SUPPORT_LINES, SUPPORT_TAGLINE, paymentUri } from '../tools/support-model.mjs';
 
 
 // How many areas the Home shows under the map before handing over to MORE….
@@ -166,13 +165,8 @@ async function forecastScreen(root, scene) {
 // changes.
 //
 // `onWeather`: the severity, once known, for a caller that sorts on it.
-// --- the footer's two categories: where the code is, and where a tip goes.
-//
-// They were one undifferentiated stack of links. A repository and a tip jar are
-// not the same offer — one is a licence obligation, the other is a request —
-// and a player who is looking for one should never have to read the other.
-// Each gets its own heading, and each speaks in marks rather than in words:
-// a logo is recognised before it is read, which "SUPPORT" never was.
+// --- the footer: where the code is. A heading, then a mark rather than a word:
+// a logo is recognised before it is read.
 
 // A category heading in the footer. Micro type, one word or one line.
 function metaHead(text) {
@@ -219,10 +213,8 @@ function iconImg(name, { size = 12, alt = '', cls = 'terminal-mark' } = {}) {
 // setWindowOpenHandler, which hands https to the system browser.
 function sourceLink() {
 	const a = document.createElement('a');
-	// The same tile as the tips below it: same mark size, same type, same edge.
-	// The two categories are different offers, not different weights — one of
-	// them rendered at half the size of the other read as an afterthought, and
-	// the AGPL's offer is the one obligation on this screen.
+	// A full tile, not a footnote: the AGPL's offer is the one obligation on
+	// this screen.
 	a.className = 'terminal-mark-tile terminal-source';
 	// setAttribute rather than the properties: the render selftests mount this
 	// on a fake DOM that tracks attributes, and an offer the tests cannot see is
@@ -232,40 +224,12 @@ function sourceLink() {
 	a.setAttribute('rel', 'noopener noreferrer');
 	a.appendChild(iconImg('github', { size: 36, alt: 'GITHUB' }));
 	const name = document.createElement('span');
-	name.className = 'terminal-tip-name';
+	name.className = 'terminal-mark-name';
 	name.textContent = LICENCE;
 	a.appendChild(name);
 	return a;
 }
 
-// The tip row: one tile per currency, each opening its own window.
-//
-// No full screen any more. A tip jar that takes the whole frame asks more of a
-// player than it is worth — the window opens over FIELD, says one thing, and
-// closes.
-//
-// A tile rather than a bare icon: three unlabelled glyphs in a corner are
-// something to decipher, and nobody gives to a puzzle. The mark is what carries
-// the recognition and the coin's NAME is under it — which is the opposite of
-// the word this replaced: "SUPPORT" said nothing about what would happen next.
-function tipRow(onOpen) {
-	const row = document.createElement('div');
-	row.className = 'terminal-tips';
-	for (const group of TIP_BUTTONS) {
-		const b = screenButton('', () => onOpen(group, b), 'terminal-mark-tile terminal-tip-btn');
-		// 36px, an exact tripling of the 12x12 grid. Any size that is not a whole
-		// multiple lands pixels on half-pixels, which is where crispEdges stops
-		// being able to help — and this mark is the tile's headline.
-		b.appendChild(iconImg(group.icon, { size: 36, alt: '' }));
-		const name = document.createElement('span');
-		name.className = 'terminal-tip-name';
-		name.textContent = group.alt;
-		b.appendChild(name);
-		b.dataset.tip = group.id;
-		row.appendChild(b);
-	}
-	return row;
-}
 
 function areaRow(sc, { onActivate, onWeather = null } = {}) {
 	const row = document.createElement('button');
@@ -579,101 +543,6 @@ async function operatorScreen(root, api) {
 // A hand-written version ladder (tools/buildnotes-model.mjs), unlocked by the
 // counters the operator has already accumulated. Decorative: it resolves no
 // flight, just a BACK to the Home.
-// A TIP WINDOW — where the money would go, if you felt like it.
-//
-// One window per currency, opened from the mark in the FIELD footer. Not a mode
-// at SELECT OPERATION MODE (a tip jar is not a mode), and no longer a full
-// screen either: it says one thing, and a screen that takes the whole frame to
-// say one thing asks more of a player than the thing is worth.
-//
-// Crypto only. The window does not argue the point — a line explaining why
-// there is no card button reads as a defence, and a tip jar that defends itself
-// is asking for more than it should. The README carries the reasoning.
-function tipWindow(root, group, onClose = () => {}) {
-	const s = screen(root, `terminal-tip tip-${group.id}`);
-	const close = () => { s.remove(); onClose(); };
-
-	const head = document.createElement('div');
-	head.className = 'tip-head';
-	// The same 24px mark as the button that opened it: the window answers the
-	// click by showing what was clicked, which is what says it is the right one.
-	head.appendChild(iconImg(group.icon, { size: 24, alt: '' }));
-	const title = document.createElement('pre');
-	title.textContent = group.title;
-	head.appendChild(title);
-	s.box.appendChild(head);
-
-	const said = document.createElement('pre');
-	said.className = 'terminal-sub';
-	said.textContent = SUPPORT_LINES.join('\n');
-	s.box.appendChild(said);
-
-	if (group.note) {
-		const n = document.createElement('pre');
-		n.className = 'support-note';
-		n.textContent = group.note;
-		s.box.appendChild(n);
-	}
-
-	for (const entry of group.entries) {
-		const row = document.createElement('div');
-		row.className = 'support-entry';
-
-		const label = document.createElement('pre');
-		label.className = 'support-label';
-		label.textContent = entry.label;
-		row.appendChild(label);
-
-		if (entry.note) {
-			const note = document.createElement('pre');
-			note.className = 'support-note';
-			note.textContent = entry.note;
-			row.appendChild(note);
-		}
-
-		// The address, whole. Never truncated with an ellipsis: an address you
-		// cannot read in full is an address you cannot check against what your
-		// wallet pasted, and checking is the only defence a donor has.
-		const value = document.createElement('pre');
-		value.className = 'support-value';
-		value.textContent = entry.address;
-		row.appendChild(value);
-
-		row.appendChild(copyButton(entry.address));
-		// The handle is not a URI scheme, so it gets no URI button rather than
-		// a button that copies something no wallet can open.
-		const uri = paymentUri(entry);
-		if (uri) row.appendChild(copyButton(uri, 'COPY URI'));
-		s.box.appendChild(row);
-	}
-
-	// menuNav, like every other screen: cursor, keyboard, gamepad, and above all
-	// Escape doing something. buildNotesScreen carries the comment about being
-	// the one screen that forgot this; there is no reason to be the second.
-	let nav = null;
-	const closeAndDetach = () => { nav?.detach(); close(); };
-	backRow(s.box, closeAndDetach);
-	nav = menuNav(s.el, { back: closeAndDetach });
-	nav.focusAt(0);
-	return s;
-}
-
-// A copy button that says whether it worked, because a silent copy button is
-// indistinguishable from a broken one — and here the thing being copied is a
-// payment address, where "I think it copied" is not good enough.
-function copyButton(text, label = 'COPY') {
-	const b = screenButton(label, async () => {
-		let ok = false;
-		try {
-			await navigator.clipboard.writeText(text);
-			ok = true;
-		} catch { ok = false; }
-		b.textContent = ok ? '[ COPIED ]' : '[ SELECT IT BY HAND ]';
-		setTimeout(() => { b.textContent = `[ ${label} ]`; }, 2000);
-	});
-	return b;
-}
-
 function buildNotesScreen(root, operator) {
 	const s = screen(root);
 	const c = countersOf(operator);
@@ -1331,20 +1200,6 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 		left.appendChild(metaHead(SOURCE_CALL));
 		left.appendChild(sourceLink());
 
-		// And the tip jar, which is a different kind of offer and says so by
-		// standing in its own category with its own line.
-		//
-		// FIELD is left MOUNTED and visible under the window: the map, the pin
-		// and the selected area stay exactly where they were, which is what makes
-		// this a window rather than a detour. menuNav takes care of itself — the
-		// active nav is the topmost one on the stack, so the window has the
-		// keyboard for as long as it is open. On the way out the cursor goes back
-		// to the mark that opened it, not to the top of the column.
-		left.appendChild(metaHead(SUPPORT_TAGLINE));
-		left.appendChild(tipRow((group, mark) => {
-			tipWindow(root, group, () => mark.focus());
-		}));
-
 		// --- the small print, last: where the game runs, and whose imagery it
 		// streams.
 		//
@@ -1352,10 +1207,10 @@ export async function runTerminal(root, { api = operatorApi, back = false } = {}
 		// does, and SETTINGS moved to the root. A menu that repeats its exits on
 		// every floor has no floors.
 		//
-		// It comes AFTER the tiles, at the very bottom of the column. Both lines
-		// are things the program must state, not things anyone is here to read:
-		// above the tiles they were two grey lines between a player and the two
-		// offers the footer actually makes.
+		// It comes AFTER the source tile, at the very bottom of the column. Both
+		// lines are things the program must state, not things anyone is here to
+		// read: above the tile they stood between a player and the offer the
+		// footer actually makes.
 		const foot = document.createElement('pre');
 		foot.className = 'terminal-foot';
 		foot.textContent = model.footer;

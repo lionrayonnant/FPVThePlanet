@@ -123,6 +123,15 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
   voyait « ça ne marche pas ». Et quand le périphérique reste inconnu, l'écran de
   lancement nomme désormais l'endroit où ça se règle.
 
+### Retiré
+
+- **Les adresses de dons en crypto** (#201), du README comme du jeu : la
+  rangée Cake Wallet / Bitcoin / Monero du pied de FIELD, ses fenêtres, leurs
+  trois icônes, `tools/support-model.mjs` et son selftest, et les marques
+  exportées dans `docs/brand/`. Pas d'adresse de paiement tant que le jeu
+  diffuse l'imagerie de Google. Le README crédite désormais cette imagerie
+  (© Google) dans sa section licence, en plus du jeu qui l'affichait déjà.
+
 ## [1.2.0] - 2026-09-23
 
 ### Ajouté
