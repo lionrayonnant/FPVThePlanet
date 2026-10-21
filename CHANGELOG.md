@@ -26,6 +26,13 @@ conservés parce qu'ils sont la trace de la décision, pas un lien.
 
 ### Ajouté
 
+- **Des points de largage mis en avant en LIVE** (#200). `FEATURED DROPS` liste
+  cinq lieux à forte couverture 3D — Paris, Tokyo, New York, San Francisco,
+  Rome — chacun posé sur un espace dégagé ; un clic y centre la carte et pose
+  la punaise. Un opérateur qui n'a encore jamais volé trouve le premier déjà
+  épinglé : `[ FLY LIVE ]` est ouvert dès la première image, sans savoir où
+  chercher la photogrammétrie.
+
 - **Un écran de recommandations au lancement.** `RECOMMENDED` montre, avant le
   menu, trois pictogrammes — `FPV RADIO` ou `DUALSHOCK`, et `CHROME` — allumés
   quand le jeu les détecte, ternes sinon. Une seule ligne de texte au plus :

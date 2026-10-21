@@ -37,9 +37,11 @@ The clone is around 165 MB, nine tenths of it the 143 music tracks in
 `sim/public/music/`. `--depth 1` skips the history; the audio it does not skip,
 because the soundtrack is part of the game rather than an asset pack.
 
-A fresh clone has no terrain on disk, so the catalogue starts empty. Open the
-LIVE tab, click the map to drop a pin, then `[ FLY LIVE ]`. Tiles stream in
-during the flight and nothing is written to your disk.
+A fresh clone has no terrain on disk, so the catalogue starts empty — but the
+LIVE tab opens with a featured drop already pinned (Paris, Tokyo, New York, San
+Francisco, Rome), so the first flight is one `[ FLY LIVE ]` away. Click the map
+to drop a pin anywhere else. Tiles stream in during the flight and nothing is
+written to your disk.
 
 ## Controls
 
