@@ -768,16 +768,12 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	margin: var(--space-4) 0 0;
 }
 
-/* The footer's tiles: a mark, a name under it, and a real edge around both.
-   Four of them, in two categories — the repository under SOURCE, the three
-   coins under the tip line. They are the only things in this footer asking for
-   a decision, so they are the only things built like a control, and they are
-   all built the SAME: one of them at half the size of the others reads as an
-   afterthought rather than as a second category.
+/* The footer's tile: a mark, a name under it, and a real edge around both —
+   the repository under SOURCE. It is the only thing in this footer asking for a
+   decision, so it is the only thing built like a control.
 
    The mark is resolved warm white (terminal.js iconImg), and the tile inverts
    whole under the cursor, which is the terminal's own idiom for "this one". */
-.terminal-tips { display: flex; align-items: stretch; gap: var(--space-3); margin-top: var(--space-3); }
 .terminal-mark-tile {
 	display: inline-flex;
 	flex-direction: column;
@@ -800,7 +796,6 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
 	text-decoration: none;
 	cursor: pointer;
 }
-.terminal-tips .terminal-mark-tile { margin-top: 0; }
 .terminal-mark-tile:hover,
 .terminal-mark-tile:focus-visible {
 	outline: none;
@@ -812,64 +807,7 @@ button.flash:hover { animation: key-flash-off var(--dur-1) steps(1, end); }
    the pixels: `filter` is the only thing that reaches inside an <img>. */
 .terminal-mark-tile:hover .terminal-mark,
 .terminal-mark-tile:focus-visible .terminal-mark { filter: invert(1); }
-.terminal-tip-name { white-space: nowrap; }
-
-/* A tip window, not a screen: it says one thing, so it takes the room one thing
-   needs and leaves FIELD legible behind it. The ground is translucent rather
-   than the chain's opaque black — what is behind is where the player was, and
-   they are coming straight back to it.
-
-   The width is set by the addresses: a bech32 or base58 string has nowhere to
-   break but between two characters, and a narrow column turns one address into
-   six ragged lines nobody can check. */
-/* color-mix rather than an rgba() literal: the ground is the chain's own black,
-   thinned — tokens.css stays the only place a colour is written down. */
-.bootstrap.terminal-tip { background: color-mix(in srgb, var(--black) 84%, transparent); }
-.terminal-tip .bootstrap-box {
-	width: min(620px, 88vw);
-	border: var(--rule-w) solid var(--rule-strong);
-	background: var(--black);
-	padding: var(--space-5);
-}
-.tip-head { display: flex; align-items: center; gap: .6em; }
-.tip-head pre { letter-spacing: var(--track-display); }
-
-/* A tip window. The addresses are the content, so they get the room: full width,
-   wrapping anywhere, in the mono face at a size that stays readable rather than
-   one that flatters the layout. Nothing here is ever truncated — an address you
-   cannot read in full is one you cannot check against what your wallet pasted. */
-.support-entry {
-	margin: 1.4em 0;
-	padding-left: .8em;
-	border-left: 1px solid var(--rule-strong);
-}
-.support-label {
-	color: var(--ink);
-	letter-spacing: .12em;
-}
-.support-note {
-	color: var(--faint);
-	font-size: var(--fs-micro);
-	margin: .2em 0 .5em;
-}
-.support-value {
-	color: var(--light-grey);
-	/* anywhere, not break-word: base58 and bech32 have no spaces and no hyphens,
-	   so the only place to break is between two characters. */
-	overflow-wrap: anywhere;
-	white-space: pre-wrap;
-	user-select: all;
-	margin-bottom: .5em;
-}
-/* The Cake handle is the one line in the whole tip jar a person can read out
-   loud, remember, or type — so it is the one line that gets to look like a
-   headline rather than like a checksum. (It used to ask for --fs-body, a token
-   that does not exist: the rule was silently doing nothing.) */
-.tip-cake .support-value {
-	color: var(--ink);
-	font-size: var(--fs-ui-l);
-	letter-spacing: var(--track-ui);
-}
+.terminal-mark-name { white-space: nowrap; }
 
 
 /* BUILD NOTES: a version number, then its indented lines. The indent is

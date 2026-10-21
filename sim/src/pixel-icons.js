@@ -173,57 +173,6 @@ export const PIXEL_ICONS = {
 		'..##....##..',
 		'...#....#...',
 	],
-	// Bitcoin: the B with its two stems, and no coin around it. The disc is what
-	// turns to mud first at this size — the letterform alone is what people
-	// actually recognise, and it stays two clean strokes wide.
-	bitcoin: [
-		'...#..#.....',
-		'...#..#.....',
-		'..#######...',
-		'..##....##..',
-		'..##....##..',
-		'..#######...',
-		'..##....##..',
-		'..##.....##.',
-		'..##.....##.',
-		'..#######...',
-		'...#..#.....',
-		'...#..#.....',
-	],
-	// Monero: the ring and the M inside it, which is the whole mark. The middle
-	// vertex drops below the shoulders the way the real glyph does; drawn as an
-	// outline rather than a disc so the M has somewhere to live.
-	monero: [
-		'...######...',
-		'.##......##.',
-		'.#........#.',
-		'#.##....##.#',
-		'#.###..###.#',
-		'#.#.####.#.#',
-		'#.#..##..#.#',
-		'#.#......#.#',
-		'.#........#.',
-		'.##......##.',
-		'...######...',
-		'............',
-	],
-	// Cake Wallet: a cake. The brand's own slice does not survive twelve pixels
-	// — the tiers and the candle do, and they say "cake" without borrowing a
-	// mark that would misrepresent it.
-	cake: [
-		'.....#......',
-		'.....#......',
-		'...######...',
-		'.##########.',
-		'############',
-		'#.##.##.##.#',
-		'.##########.',
-		'.#........#.',
-		'.#.######.#.',
-		'.#........#.',
-		'.##########.',
-		'............',
-	],
 	// A DualShock, as a filled silhouette read through its holes: the D-pad
 	// cross on the left, the four face buttons as a diamond on the right, the
 	// two sticks between them, the shoulder buttons on top and the two grips

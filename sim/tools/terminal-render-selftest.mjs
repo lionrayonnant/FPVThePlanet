@@ -9,7 +9,6 @@
 // Run: node tools/terminal-render-selftest.mjs
 
 import assert from 'node:assert/strict';
-import { ADDRESSES, HANDLE, TIP_BUTTONS } from './support-model.mjs';
 import { installFakeDom } from './lib/fake-dom.mjs';
 
 const dom = installFakeDom();
@@ -513,44 +512,14 @@ await ta('home: the source is offered, which the AGPL requires of a network inst
 	await close(p);
 });
 
-await ta('tips: three marks, and each one opens its own addresses whole', async () => {
-	// support-selftest.mjs proves the addresses are valid; this proves the
-	// windows do not mangle them on the way out. An address shortened with an
-	// ellipsis for layout is an address a donor cannot check against what their
-	// wallet pasted, which is the only defence they have — so the assertion is
-	// character-for-character.
+await ta('no tip jar: the footer carries no payment address', async () => {
+	// Removed for the launch (#201): no donation addresses while the game
+	// streams Google imagery.
 	reset();
 	const p = runTerminal(dom.root, { settings: null, api: api(operator()), back: true });
 	await new Promise((r) => setTimeout(r, 0));
-
-	const marks = dom.root.querySelectorAll('.terminal-tip-btn');
-	assert.equal(marks.length, TIP_BUTTONS.length, 'one mark per currency');
-	// Each tile names its coin under the mark. Three unlabelled glyphs in a
-	// corner are something to decipher, and nobody gives to a puzzle.
-	for (const [i, b] of marks.entries()) {
-		assert.ok(b.textContent.includes(TIP_BUTTONS[i].alt), 'the tile names its coin');
-		assert.ok(b.querySelectorAll('img').length, 'and carries its mark');
-	}
-
-	for (const [i, group] of TIP_BUTTONS.entries()) {
-		dom.root.querySelectorAll('.terminal-tip-btn').at(i).click();
-		await new Promise((r) => setTimeout(r, 0));
-		const box = dom.root.querySelectorAll('.terminal-box').at(-1);
-		assert.ok(box.textContent.includes(group.title), `${group.id}: the window says which coin`);
-		for (const e of group.entries) {
-			assert.ok(box.textContent.includes(e.address), `${group.id}: ${e.id} is on screen in full`);
-		}
-		assert.doesNotMatch(box.textContent, /\u2026|\.\.\./, `${group.id}: nothing is elided`);
-		// BACK returns to FIELD with the map untouched — opening a tip window
-		// must cost a player nothing.
-		box.querySelectorAll('button').find((b) => b.textContent === '[ BACK ]').click();
-		await new Promise((r) => setTimeout(r, 0));
-	}
-
-	// Every address, and the handle, reachable from the footer.
-	const all = TIP_BUTTONS.flatMap((g) => g.entries.map((e) => e.address));
-	for (const a of ADDRESSES) assert.ok(all.includes(a.address), `${a.id}: unreachable`);
-	assert.ok(all.includes(HANDLE), 'the readable handle has a window too');
+	assert.equal(dom.root.querySelectorAll('.terminal-tip-btn').length, 0, 'no tip marks');
+	assert.doesNotMatch(dom.root.textContent, /BITCOIN|MONERO|CAKE WALLET|cake\.cash/i, 'no coin named');
 	await close(p);
 });
 
