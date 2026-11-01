@@ -49,10 +49,10 @@
 	},
 	"dependencies": {
 		"@dimforge/rapier3d-compat": "^0.20.0",
-		"@geoman-io/leaflet-geoman-free": "^2.20.0",
-		"electron-updater": "^6.8.9",
+		"@geoman-io/leaflet-geoman-free": "^2.20.4",
+		"electron-updater": "^6.8.11",
 		"leaflet": "^1.9.4",
-		"sharp": "^0.35.0",
+		"sharp": "^0.35.5",
 		"three": "^0.186.0"
 	},
 	"devDependencies": {
